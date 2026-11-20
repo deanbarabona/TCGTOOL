@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Report Builder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f4f5f7; --panel:#ffffff; --ink:#16181d; --muted:#626a77; --line:#e1e4ea;
+  --accent:#1f5eff; --accent-soft:#e8efff; --good:#12805c; --good-soft:#e3f5ee; --warn:#a15c00; --warn-soft:#fff4e0; --bad:#b42318;
+  --field:#f8f9fb; --radius:12px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1115; --panel:#171a21; --ink:#e8eaee; --muted:#9aa2b1; --line:#2a2f3a;
+    --accent:#6f95ff; --accent-soft:#1c2540; --good:#4cc79a; --good-soft:#12291f; --warn:#f0b35a; --warn-soft:#2b2214; --bad:#ff8a80; --field:#12151b;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --panel:#171a21; --ink:#e8eaee; --muted:#9aa2b1; --line:#2a2f3a;
+  --accent:#6f95ff; --accent-soft:#1c2540; --good:#4cc79a; --good-soft:#12291f; --warn:#f0b35a; --warn-soft:#2b2214; --bad:#ff8a80; --field:#12151b;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 Inter,system-ui,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel);position:sticky;top:0;z-index:5}
+header h1{font-size:16px;margin:0;font-weight:700;letter-spacing:.2px}
+header .sub{color:var(--muted);font-size:12px}
+.wrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px;padding:16px;max-width:1500px;margin:0 auto}
+@media (max-width:980px){.wrap{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+.card h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0 0 10px;font-weight:600}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1;min-width:110px;border:1px solid var(--line);background:var(--field);color:var(--ink);padding:10px 12px;border-radius:10px;font:inherit;font-weight:600;cursor:pointer}
+.seg button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.seg.small button{min-width:70px;padding:7px 10px;font-weight:500}
+textarea,input,select{font:inherit;color:var(--ink);background:var(--field);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+textarea{resize:vertical}
+#paste{min-height:220px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12.5px}
+.row{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:10px}
+label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.checks{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
+.checks label{display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px}
+.checks input{width:auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.chip{background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:3px 10px;font-size:12px}
+.chip.miss{background:var(--warn-soft);color:var(--warn)}
+.flaw{display:grid;grid-template-columns:60px 1fr 170px;gap:8px;align-items:center;padding:6px 0;border-top:1px dashed var(--line);font-size:13px}
+.flaw:first-child{border-top:0}
+.flaw .side{font-size:11px;font-weight:600;text-transform:uppercase;color:var(--muted)}
+.flaw .t{color:var(--muted);font-size:12px}
+.btn{border:1px solid var(--line);background:var(--field);color:var(--ink);border-radius:8px;padding:7px 12px;font:inherit;font-size:13px;cursor:pointer}
+.btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;padding:10px 16px}
+.btn:hover{filter:brightness(.97)}
+.bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.out .sec{border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px;background:var(--field)}
+.out .sec .hd{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:6px}
+.out .sec .hd b{font-size:13px}
+.out .sec .wc{font-size:11px;color:var(--muted)}
+.out .sec .wc.over{color:var(--bad);font-weight:600}
+.out .sec .txt{white-space:pre-wrap;outline:none;min-height:20px}
+.out .sec .txt:focus{background:var(--panel);border-radius:6px}
+.warn{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px;margin-bottom:10px;font-size:13px}
+.verdict{display:inline-block;border-radius:999px;padding:3px 10px;font-size:12px;font-weight:600}
+.verdict.yes{background:var(--good-soft);color:var(--good)}
+.verdict.no{background:var(--warn-soft);color:var(--warn)}
+.hide{display:none!important}
+.hint{font-size:12px;color:var(--muted);margin-top:6px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+</style>
+</head>
+<body>
+<header>
+  <div><h1>Report Builder</h1><div class="sub">Paste, pick, generate. Your call always wins.</div></div>
+  <div class="bar"><button class="btn" id="themeBtn" title="Toggle theme">Theme</button></div>
+</header>
+
+<div class="wrap">
+<!-- LEFT: inputs -->
+<div>
+  <div class="card">
+    <h2>1. Service</h2>
+    <div class="seg" id="modeSeg">
+      <button data-v="auth">Authenticity</button>
+      <button data-v="pregrade" class="on">Pregrade</button>
+      <button data-v="bundle">Bundle</button>
+    </div>
+    <div id="itemWrap" class="hide" style="margin-top:10px">
+      <div class="seg small" id="itemSeg">
+        <button data-v="card" class="on">Card</button>
+        <button data-v="pack">Pack</button>
+        <button data-v="box">Box / ETB</button>
+        <button data-v="slab">Slab</button>
+      </div>
+    </div>
+    <div class="row">
+      <label class="f">Card game
+        <select id="game">
+          <option value="pokemon">Pokémon</option><option value="yugioh">Yu-Gi-Oh</option><option value="mtg">Magic: The Gathering</option>
+          <option value="lorcana">Disney Lorcana</option><option value="onepiece">One Piece</option><option value="dragonball">Dragon Ball Super</option>
+          <option value="digimon">Digimon</option><option value="sports">Sports</option>
+        </select>
+      </label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>2. Paste everything</h2>
+    <textarea id="paste" placeholder="Paste the price table, centering, flaw callouts, compliance log, the AI note, and your notes (like: psa 8, callouts are whites, holo is unique)."></textarea>
+    <div class="chips" id="chips"></div>
+    <div class="bar" style="margin-top:8px"><button class="btn" id="clearBtn">Clear</button></div>
+  </div>
+
+  <div class="card" id="gradeCard">
+    <h2>3. Grade and prices</h2>
+    <div class="row">
+      <label class="f">PSA grade
+        <select id="grade"><option value="">Pick</option>
+          <option>10</option><option>9.5</option><option>9</option><option>8</option><option>7</option><option>6</option><option>5</option><option>4</option><option>3</option><option>2</option><option>1</option>
+        </select>
+      </label>
+      <label class="f">Raw value override ($)<input id="rawOv" inputmode="decimal" placeholder="auto"></label>
+      <label class="f">Grade value override ($)<input id="tgtOv" inputmode="decimal" placeholder="auto"></label>
+      <label class="f">Recommendation
+        <select id="forceRec"><option value="">Auto ($350 rule)</option><option value="yes">Force recommended</option><option value="no">Force not recommended</option></select>
+      </label>
+    </div>
+    <div class="checks">
+      <label><input type="checkbox" id="grail"> Grail card</label>
+      <label><input type="checkbox" id="newSet"> New set, no graded data</label>
+      <label><input type="checkbox" id="dmgWord"> Say "no damage" instead of "no flaws"</label>
+      <label><input type="checkbox" id="regrade"> Regrade</label>
+    </div>
+    <div class="row hide" id="regradeRow">
+      <label class="f">Current slab (e.g. PSA 8, CGC 9)<input id="curSlab" placeholder="PSA 8"></label>
+      <label class="f">Current slab value goes in Raw value override<input disabled placeholder="use the field above"></label>
+      <label class="checks" style="margin-top:20px"><input type="checkbox" id="crossTo"> Cross grade to PSA</label>
+    </div>
+    <div class="row">
+      <label class="f">Other company (optional)
+        <select id="otherCo"><option value="">None</option><option>TAG</option><option>CGC</option><option>BGS</option></select>
+      </label>
+      <label class="f">Its grade<input id="otherGrade" placeholder="same as PSA"></label>
+      <label class="f">Its value ($)<input id="otherPrice" placeholder="auto from paste"></label>
+    </div>
+  </div>
+
+  <div class="card" id="flawCard">
+    <h2>4. Callouts</h2>
+    <div class="bar">
+      <span class="hint" style="margin:0">Set all to:</span>
+      <button class="btn" data-all="auto">Tool wording</button>
+      <button class="btn" data-all="minor whites">Minor whites</button>
+      <button class="btn" data-all="multiple whites">Multiple whites</button>
+      <button class="btn" data-all="minor scratch">Minor scratch</button>
+      <button class="btn" data-all="white dot">White dot</button>
+    </div>
+    <div id="flaws" style="margin-top:8px"></div>
+    <div class="hint" id="flawHint">Front and back come straight from the tool's Front Flaws and Back Flaws. Pick a new label per callout if you saw something different.</div>
+  </div>
+
+  <div class="card" id="authCard">
+    <h2>5. Authentication (authentic only)</h2>
+    <div id="cardAuthOpts">
+      <div class="hint" style="margin-top:0">Holo / foil</div>
+      <div class="seg small" id="foilSeg">
+        <button data-v="" class="on">Not mentioned</button>
+        <button data-v="unique">Unique holo</button>
+        <button data-v="textured">Textured matches</button>
+        <button data-v="factory">Holo factory</button>
+        <button data-v="reverse">Reverse holo</button>
+        <button data-v="glare">Foil + glare</button>
+      </div>
+      <div class="checks">
+        <label><input type="checkbox" id="rosetteBack"> Rosette on back</label>
+        <label><input type="checkbox" id="rosetteFront"> Rosette on front</label>
+        <label><input type="checkbox" id="noBack"> No back comment</label>
+        <label><input type="checkbox" id="trainer"> Trainer card (no energy)</label>
+      </div>
+      <div class="row">
+        <label class="f">Factory stamp (optional)<input id="stamp" placeholder="30th anniversary stamp"></label>
+        <label class="f">Custom back line (optional)<input id="backLine" placeholder="leave blank for the standard line"></label>
+      </div>
+      <label class="f" style="margin-top:10px">Extra finding sentence (optional)<input id="extraAuth" placeholder="Surface finish is consistent with genuine prints from this set."></label>
+    </div>
+    <div id="boxOpts" class="checks hide"><label><input type="checkbox" id="qr"> Has a QR code</label></div>
+    <div id="slabOpts" class="row hide">
+      <label class="f">Grading company<select id="slabCo"><option>PSA</option><option>CGC</option><option>BGS</option><option>TAG</option><option>SGC</option></select></label>
+      <label class="checks" style="margin-top:20px"><input type="checkbox" id="oldSlab"> Older slab (no photo, QR, or holo sticker)</label>
+    </div>
+
+    <div class="hint" style="margin-top:14px">Flag line (auto ticked from the AI note, change as needed)</div>
+    <div class="checks" id="flagChecks">
+      <label><input type="checkbox" data-flag="saidFake"> AI called it fake</label>
+      <label><input type="checkbox" data-flag="cardDetails"> Card details</label>
+      <label><input type="checkbox" data-flag="illustrator"> Illustrator credit</label>
+      <label><input type="checkbox" data-flag="year"> Year</label>
+      <label><input type="checkbox" data-flag="copyright"> Copyright line</label>
+      <label><input type="checkbox" data-flag="hedge"> Hedging</label>
+      <label><input type="checkbox" data-flag="gradeOpinion"> Grade opinion</label>
+    </div>
+    <div class="row">
+      <label class="f">Identity correction (bolded)<input id="identity" placeholder="Charizard, Expansion Pack No Rarity, No. 006, Japanese"></label>
+      <label class="f">Extra flag reason<input id="flagReason" placeholder="based on a misread of the back"></label>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>6. Your comments</h2>
+    <div class="row" style="margin-top:0">
+      <label class="f">Add to
+        <select id="cTarget">
+          <option value="Front Comment">Front comment</option><option value="Back Comment">Back comment</option>
+          <option value="Estimated Grade">Estimated grade</option><option value="Grading Recommendation">Recommendation</option>
+          <option value="Corrected Authentication Note">Auth note</option><option value="Reasons Why">Reasons why</option>
+        </select>
+      </label>
+    </div>
+    <textarea id="myComment" rows="3" style="margin-top:8px" placeholder="Anything extra you want added, written your way."></textarea>
+  </div>
+</div>
+
+<!-- RIGHT: output -->
+<div>
+  <div class="card" style="position:sticky;top:76px">
+    <div class="bar" style="justify-content:space-between">
+      <h2 style="margin:0">Report</h2>
+      <div class="bar">
+        <span id="recBadge"></span>
+        <button class="btn primary" id="genBtn">Generate</button>
+        <button class="btn" id="shuffleBtn" title="New wording, same facts">Reshuffle</button>
+        <button class="btn" id="copyAll">Copy all</button>
+      </div>
+    </div>
+    <div id="warns" style="margin-top:12px"></div>
+    <div class="out" id="out" style="margin-top:12px"><div class="hint">Paste your data and hit Generate. Every section is editable before you copy.</div></div>
+    <div class="hint">Wording rotates through approved lines and avoids ones used in your last reports on this browser. <a href="#" id="resetHist">Reset memory</a></div>
+  </div>
+</div>
+</div>
+<div class="toast" id="toast">Copied</div>
+
+<script src="engine.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const state = { mode:'pregrade', item:'card', foil:'', parsed:null, flaws:[], last:null };
+  const LABELS = ['auto','slight wear','notable softness','minor whites','multiple whites','significant whites','white dot','white spot','minor scratch','micro scratch','hairline scratch','scratch','dent','lifting','crease','severe creasing with split stock','ignore'];
+
+  // theme
+  try { const t = localStorage.getItem('vrb_theme'); if (t) document.documentElement.dataset.theme = t; } catch(e){}
+  $('themeBtn').onclick = () => {
+    const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+    const nx = cur === 'dark' ? 'light' : 'dark'; document.documentElement.dataset.theme = nx;
+    try { localStorage.setItem('vrb_theme', nx); } catch(e){}
+  };
+
+  function segBind(id, key, after){
+    $(id).querySelectorAll('button').forEach(b => b.onclick = () => {
+      $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
+      state[key] = b.dataset.v; if (after) after();
+    });
+  }
+  function segSet(id, v){ $(id).querySelectorAll('button').forEach(x => x.classList.toggle('on', x.dataset.v === v)); }
+  segBind('modeSeg','mode',layout); segBind('itemSeg','item',layout); segBind('foilSeg','foil');
+
+  function layout(){
+    const m = state.mode;
+    $('itemWrap').classList.toggle('hide', m !== 'auth');
+    $('gradeCard').classList.toggle('hide', m === 'auth');
+    $('flawCard').classList.toggle('hide', m === 'auth');
+    $('authCard').classList.toggle('hide', m === 'pregrade');
+    const isCard = m === 'bundle' || state.item === 'card';
+    $('cardAuthOpts').classList.toggle('hide', !isCard);
+    $('boxOpts').classList.toggle('hide', !(m === 'auth' && state.item === 'box'));
+    $('slabOpts').classList.toggle('hide', !(m === 'auth' && state.item === 'slab'));
+  }
+  $('regrade').onchange = () => $('regradeRow').classList.toggle('hide', !$('regrade').checked);
+
+  function chip(txt, miss){ const s = document.createElement('span'); s.className = 'chip' + (miss ? ' miss' : ''); s.textContent = txt; return s; }
+
+  function readPaste(){
+    const p = VRB.parse($('paste').value);
+    state.parsed = p;
+    state.flaws = p.flaws.map(f => Object.assign({}, f, { auto: f.label }));
+    const h = p.hints;
+    // autofill
+    const g = p.userGrade != null ? p.userGrade : p.logGrade;
+    if (g != null) $('grade').value = String(g);
+    if (h.whites) state.flaws.forEach(f => f.label = /significant/.test(f.auto) ? 'significant whites' : 'minor whites');
+    if (h.whiteDot) state.flaws.filter(f => f.cat === 'surface').forEach(f => f.label = 'white dot');
+    else if (h.scratch) state.flaws.filter(f => f.cat === 'surface').forEach(f => f.label = 'minor scratch');
+    $('grail').checked = h.grail;
+    $('noBack').checked = h.noBack;
+    $('rosetteBack').checked = h.rosette;
+    let foil = state.foil;
+    if (h.textured) foil = 'textured'; else if (h.holoUnique) foil = 'unique'; else if (h.holoFactory) foil = 'factory'; else if (h.noHolo) foil = '';
+    state.foil = foil; segSet('foilSeg', foil);
+    if (h.yugioh) $('game').value = 'yugioh';
+    if (h.bundle && state.mode !== 'bundle') { state.mode = 'bundle'; segSet('modeSeg','bundle'); }
+    const fl = VRB.detectFlags(p.aiNote);
+    document.querySelectorAll('[data-flag]').forEach(c => c.checked = !!fl[c.dataset.flag]);
+    layout();
+    renderFlaws();
+    // chips
+    const c = $('chips'); c.innerHTML = '';
+    c.append(chip(p.prices.raw != null ? 'Raw $' + p.prices.raw.toLocaleString() : 'No raw value', p.prices.raw == null));
+    const nPrices = Object.keys(p.prices).length - (p.prices.raw != null ? 1 : 0) + Object.keys(p.extraPrices).length;
+    c.append(chip(nPrices + ' graded prices', !nPrices));
+    c.append(chip(p.centering.front.lr ? 'Front centering found' : 'No front centering', !p.centering.front.lr));
+    c.append(chip(p.centering.back.lr ? 'Back centering found' : 'No back centering', !p.centering.back.lr));
+    c.append(chip(p.flaws.length + ' callouts'));
+    c.append(chip(p.logGrade != null ? 'Log says PSA ' + p.logGrade : 'No compliance log', p.logGrade == null));
+    if (p.userGrade != null) c.append(chip('You said PSA ' + p.userGrade));
+    if (p.aiNote) c.append(chip('AI note found'));
+    if (h.fake) c.append(chip('Looks fake: fakes are not in this version', true));
+  }
+  let t; $('paste').addEventListener('input', () => { clearTimeout(t); t = setTimeout(readPaste, 250); });
+  $('clearBtn').onclick = () => { $('paste').value = ''; $('myComment').value = ''; ['rawOv','tgtOv','otherPrice','otherGrade','stamp','identity','flagReason','extraAuth','backLine'].forEach(i => $(i).value=''); readPaste(); $('out').innerHTML=''; $('warns').innerHTML=''; $('recBadge').innerHTML=''; };
+
+  function renderFlaws(){
+    const box = $('flaws'); box.innerHTML = '';
+    if (!state.flaws.length) { box.innerHTML = '<div class="hint" style="margin:0">No callouts in the paste.</div>'; return; }
+    state.flaws.forEach((f, i) => {
+      const row = document.createElement('div'); row.className = 'flaw';
+      const sel = document.createElement('select');
+      LABELS.forEach(l => { const o = document.createElement('option'); o.value = l; o.textContent = l === 'auto' ? 'auto: ' + f.auto : l; sel.append(o); });
+      const cur = LABELS.includes(f.label) && f.label !== f.auto ? f.label : 'auto';
+      sel.value = cur;
+      sel.onchange = () => { f.label = sel.value === 'auto' ? f.auto : sel.value; };
+      row.innerHTML = '<span class="side">' + f.side + '</span><span>' + f.loc + ' <span class="t">· ' + f.cat + ' · ' + f.type + '</span></span>';
+      row.append(sel); box.append(row);
+    });
+  }
+  document.querySelectorAll('[data-all]').forEach(b => b.onclick = () => {
+    const v = b.dataset.all;
+    state.flaws.forEach(f => {
+      if (v === 'auto') f.label = f.auto;
+      else if (/whites/.test(v)) f.label = /significant/.test(f.auto) && v === 'minor whites' ? 'significant whites' : v;
+      else if (v === 'white dot' || v === 'minor scratch') { if (f.cat === 'surface') f.label = v; }
+    });
+    renderFlaws();
+  });
+
+  function numOrNull(id){ const v = $(id).value.trim(); if (!v) return null; const n = parseFloat(v.replace(/[$,\s]/g,'')); return isNaN(n) ? null : n; }
+
+  function options(){
+    const flags = {}; document.querySelectorAll('[data-flag]').forEach(c => flags[c.dataset.flag] = c.checked);
+    const p = state.parsed || VRB.parse('');
+    const oc = $('otherCo').value;
+    let otherPrice = numOrNull('otherPrice');
+    const og = $('otherGrade').value.trim() || $('grade').value;
+    if (oc && otherPrice == null) otherPrice = p.extraPrices[oc + ' ' + og] != null ? p.extraPrices[oc + ' ' + og] : null;
+    return {
+      mode: state.mode, item: state.mode === 'bundle' ? 'card' : state.item, game: $('game').value,
+      grade: $('grade').value ? parseFloat($('grade').value) : null,
+      rawOverride: numOrNull('rawOv'), targetOverride: numOrNull('tgtOv'), forceRec: $('forceRec').value,
+      grail: $('grail').checked, newSet: $('newSet').checked, damageWording: $('dmgWord').checked,
+      regrade: $('regrade').checked, currentSlab: $('curSlab').value.trim(), crossTo: $('crossTo').checked,
+      otherCo: oc || null, otherGrade: oc ? og : null, otherPrice,
+      foil: state.foil, rosetteBack: $('rosetteBack').checked, rosetteFront: $('rosetteFront').checked, noBack: $('noBack').checked,
+      trainer: $('trainer').checked, stamp: $('stamp').value.trim(), backLine: $('backLine').value.trim(), extraAuth: $('extraAuth').value.trim(),
+      qr: $('qr').checked, slabCo: $('slabCo').value, oldSlab: $('oldSlab').checked,
+      flags, flagsManual: Object.values(flags).some(Boolean), identity: $('identity').value.trim(), flagReason: $('flagReason').value.trim(),
+      isPack: false
+    };
+  }
+
+  function generate(){
+    if (!state.parsed) readPaste();
+    const p = Object.assign({}, state.parsed, { flaws: state.flaws });
+    const o = options();
+    const r = VRB.generate(p, o);
+    // user comment
+    const mc = $('myComment').value.trim();
+    if (mc) {
+      const sec = r.sections.find(s => s.title === $('cTarget').value) || r.sections.find(s => s.title === 'Corrected Comment 1');
+      if (sec) {
+        if (/Centering measures/.test(sec.text) && /Comment$/.test(sec.title)) sec.text = sec.text.replace(/(Centering measures)/, mc.replace(/\s*$/, ' ') + '$1');
+        else if (sec.title === 'Corrected Authentication Note') sec.text = sec.text.replace(/(Card back presents|No indicators of replication)/, mc.replace(/\s*$/, ' ') + '$1');
+        else sec.text = sec.text + (sec.title === 'Reasons Why' ? '\n' : ' ') + mc;
+      }
+    }
+    state.last = r;
+    // warnings
+    const w = $('warns'); w.innerHTML = '';
+    const warns = r.warnings.slice();
+    if (state.parsed && state.parsed.hints.fake && state.mode !== 'pregrade') warns.push('Your notes say fake. Fakes are not built in yet, so send this one to chat.');
+    if (state.mode !== 'auth' && state.parsed && !state.parsed.centering.front.lr) warns.push('No centering found in the paste. Centering lines will show X/X.');
+    warns.forEach(x => { const d = document.createElement('div'); d.className = 'warn'; d.textContent = x; w.append(d); });
+    // badge
+    const b = $('recBadge'); b.innerHTML = '';
+    if (r.recommended === true) b.innerHTML = '<span class="verdict yes">Recommended</span>';
+    else if (r.recommended === false) b.innerHTML = '<span class="verdict no">Not recommended</span>';
+    // output
+    const out = $('out'); out.innerHTML = '';
+    r.sections.forEach(s => {
+      const d = document.createElement('div'); d.className = 'sec';
+      const hd = document.createElement('div'); hd.className = 'hd';
+      const title = document.createElement('b'); title.textContent = s.title;
+      const right = document.createElement('div'); right.className = 'bar';
+      const wc = document.createElement('span'); wc.className = 'wc';
+      const txt = document.createElement('div'); txt.className = 'txt'; txt.contentEditable = 'true'; txt.textContent = s.text;
+      const limited = ['Front Comment','Back Comment','Grading Recommendation'].includes(s.title) || (s.title === 'Estimated Grade' && state.mode === 'pregrade');
+      const upd = () => { const n = VRB.words(txt.textContent); wc.textContent = n + ' words' + (limited ? ' / 45' : ''); wc.classList.toggle('over', limited && n > 45); s.text = txt.textContent; };
+      txt.addEventListener('input', upd); upd();
+      const cp = document.createElement('button'); cp.className = 'btn'; cp.textContent = 'Copy';
+      cp.onclick = () => copy(txt.textContent);
+      right.append(wc, cp); hd.append(title, right); d.append(hd, txt); out.append(d);
+    });
+  }
+  function copy(text){
+    const done = () => { const t = $('toast'); t.classList.add('show'); setTimeout(() => t.classList.remove('show'), 1100); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => fallback(text, done)); else fallback(text, done);
+  }
+  function fallback(text, done){ const ta = document.createElement('textarea'); ta.value = text; document.body.append(ta); ta.select(); try { document.execCommand('copy'); } catch(e){} ta.remove(); done(); }
+  $('genBtn').onclick = generate;
+  $('shuffleBtn').onclick = generate;
+  $('copyAll').onclick = () => { if (!state.last) return; copy(state.last.sections.map(s => '**' + s.title + ':**\n' + s.text).join('\n\n')); };
+  $('resetHist').onclick = e => { e.preventDefault(); VRB.clearHistory(); const t = $('toast'); t.textContent = 'Wording memory reset'; t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); t.textContent = 'Copied'; }, 1200); };
+  document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate(); });
+
+  layout(); readPaste();
+})();
+</script>
+</body>
+</html>
