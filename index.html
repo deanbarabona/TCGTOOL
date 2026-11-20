@@ -110,6 +110,13 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     <h2>2. Paste everything</h2>
     <textarea id="paste" placeholder="Paste the price table, centering, flaw callouts, compliance log, the AI note, and your notes (like: psa 8, callouts are whites, holo is unique)."></textarea>
     <div class="chips" id="chips"></div>
+    <div class="hint">Centering (filled from the paste; type or fix here if it shows X/X)</div>
+    <div class="row" style="margin-top:4px">
+      <label class="f">Front left/right<input id="cFLR" placeholder="53.3/46.7"></label>
+      <label class="f">Front top/bottom<input id="cFTB" placeholder="48.6/51.4"></label>
+      <label class="f">Back left/right<input id="cBLR" placeholder="47.3/52.7"></label>
+      <label class="f">Back top/bottom<input id="cBTB" placeholder="57.6/42.4"></label>
+    </div>
     <div class="bar" style="margin-top:8px"><button class="btn" id="clearBtn">Clear</button></div>
   </div>
 
@@ -300,6 +307,9 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     state.foil = foil; segSet('foilSeg', foil);
     if (h.yugioh) $('game').value = 'yugioh';
     if (h.bundle && state.mode !== 'bundle') { state.mode = 'bundle'; segSet('modeSeg','bundle'); }
+    const cv = pr => pr ? pr[0] + '/' + pr[1] : '';
+    $('cFLR').value = cv(p.centering.front.lr); $('cFTB').value = cv(p.centering.front.tb);
+    $('cBLR').value = cv(p.centering.back.lr); $('cBTB').value = cv(p.centering.back.tb);
     const fl = VRB.detectFlags(p.aiNote);
     document.querySelectorAll('[data-flag]').forEach(c => c.checked = !!fl[c.dataset.flag]);
     layout();
@@ -318,7 +328,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     if (h.fake) c.append(chip('Looks fake: fakes are not in this version', true));
   }
   let t; $('paste').addEventListener('input', () => { clearTimeout(t); t = setTimeout(readPaste, 250); });
-  $('clearBtn').onclick = () => { $('paste').value = ''; $('myComment').value = ''; ['rawOv','tgtOv','otherPrice','otherGrade','stamp','identity','flagReason','extraAuth','backLine'].forEach(i => $(i).value=''); readPaste(); $('out').innerHTML=''; $('warns').innerHTML=''; $('recBadge').innerHTML=''; };
+  $('clearBtn').onclick = () => { $('paste').value = ''; $('myComment').value = ''; ['cFLR','cFTB','cBLR','cBTB','rawOv','tgtOv','otherPrice','otherGrade','stamp','identity','flagReason','extraAuth','backLine'].forEach(i => $(i).value=''); readPaste(); $('out').innerHTML=''; $('warns').innerHTML=''; $('recBadge').innerHTML=''; };
 
   function renderFlaws(){
     const box = $('flaws'); box.innerHTML = '';
@@ -370,7 +380,9 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
 
   function generate(){
     if (!state.parsed) readPaste();
-    const p = Object.assign({}, state.parsed, { flaws: state.flaws });
+    const pair = id => { const m = $(id).value.match(/(\d{1,2}(?:\.\d+)?)\s*%?\s*\/\s*(\d{1,2}(?:\.\d+)?)/); return m ? [m[1], m[2]] : undefined; };
+    const centering = { front: { lr: pair('cFLR'), tb: pair('cFTB') }, back: { lr: pair('cBLR'), tb: pair('cBTB') } };
+    const p = Object.assign({}, state.parsed, { flaws: state.flaws, centering });
     const o = options();
     const r = VRB.generate(p, o);
     // user comment
@@ -388,7 +400,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     const w = $('warns'); w.innerHTML = '';
     const warns = r.warnings.slice();
     if (state.parsed && state.parsed.hints.fake && state.mode !== 'pregrade') warns.push('Your notes say fake. Fakes are not built in yet, so send this one to chat.');
-    if (state.mode !== 'auth' && state.parsed && !state.parsed.centering.front.lr) warns.push('No centering found in the paste. Centering lines will show X/X.');
+    if (state.mode !== 'auth' && !centering.front.lr) warns.push('No centering found in the paste. Centering lines will show X/X.');
     warns.forEach(x => { const d = document.createElement('div'); d.className = 'warn'; d.textContent = x; w.append(d); });
     // badge
     const b = $('recBadge'); b.innerHTML = '';

@@ -72,21 +72,9 @@
         }
       }
     }
-    // centering: collect pairs after Left / Right and Top / Bottom headers
+    // centering: walk the text in order; each ratio pair goes to the most recent Left/Right or Top/Bottom header
     const lr = [], tb = [];
-    for (let i = 0; i < lines.length; i++) {
-      const isLR = /left\s*\/\s*right/i.test(lines[i]);
-      const isTB = /top\s*\/\s*bottom/i.test(lines[i]);
-      if (!isLR && !isTB) continue;
-      for (let j = i; j < Math.min(i + 3, lines.length); j++) {
-        const m = lines[j].match(/(\d{1,2}(?:\.\d)?)\s*\/\s*(\d{1,2}(?:\.\d)?)/);
-        if (m && !/left\s*\/\s*right|top\s*\/\s*bottom/i.test(lines[j].replace(m[0], ''))) {
-          (isLR ? lr : tb).push([m[1], m[2]]);
-          break;
-        }
-        if (m && j > i) { (isLR ? lr : tb).push([m[1], m[2]]); break; }
-      }
-    }
+    Object.assign(out, parseCenteringText(text, lr, tb));
     if (lr[0]) out.centering.front.lr = lr[0];
     if (tb[0]) out.centering.front.tb = tb[0];
     if (lr[1]) out.centering.back.lr = lr[1];
@@ -120,6 +108,7 @@
       if (/grade\s*7|rang\s*7/i.test(L) && /psa\s*10/i.test(L)) continue;
       if (/^\$/.test(L)) continue;
       if (/^(left|top)\s*\//i.test(L) || /^sub\s|^(left|top)worst|worst side|^\d{1,2}\.\d\/\d|^measured live|^verification$|^volume:|^\+\s*$/i.test(L)) continue;
+      if (/^(\/|left|right|top|bottom|sub\s*[\d.]+)$/i.test(L)) continue;
       if (/^\[|^-?\d+(\.\d)?$|^front flaws|^back flaws|^compliance|^clean$|^\d+$/i.test(L)) continue;
       // range rows like "PSA 1 – PSA 2 (Poor to Good)	$11 – $19"
       const rr = L.match(/^psa\s*(\d+)\s*[–-]\s*psa\s*(\d+).*?\$\s*([\d,.]+)\s*[–-]\s*\$\s*([\d,.]+)/i);
@@ -163,7 +152,7 @@
     }
     const notesTxt = out.notes.join(' ').toLowerCase();
     out.hints = {
-      whites: /call ?outs?.{0,30}white|white.{0,30}call ?outs?|all.{0,20}whites?|^whites?$/m.test(notesTxt) || /\bwhites?\b/.test(notesTxt) && /call ?out/.test(notesTxt),
+      whites: /call ?outs?.{0,30}white|white.{0,30}call ?outs?|all.{0,20}whites?|^(minor |multiple )?whites?$/m.test(out.notes.join('\n').toLowerCase()) || /\bwhites?\b/.test(notesTxt) && /call ?out/.test(notesTxt),
       scratch: /call ?outs?.{0,30}scratch|scratch.{0,30}call ?out/.test(notesTxt),
       whiteDot: /white ?dot/.test(notesTxt),
       holoUnique: /unique/.test(notesTxt),
@@ -180,6 +169,30 @@
     };
     out.logGrade = logGrade(out);
     return out;
+  }
+
+  function parseCenteringText(text, lr, tb) {
+    lr = lr || []; tb = tb || [];
+    const re = /(left\s*\/\s*right|l\s*\/\s*r\b)|(top\s*\/\s*bottom|t\s*\/\s*b\b)|(\d{1,2}(?:\.\d+)?)\s*%?\s*\/\s*(\d{1,2}(?:\.\d+)?)\s*%?/gi;
+    let pending = null, m;
+    while ((m = re.exec(text))) {
+      if (m[1]) { pending = 'lr'; continue; }
+      if (m[2]) { pending = 'tb'; continue; }
+      const a = parseFloat(m[3]), b = parseFloat(m[4]);
+      if (!pending || Math.abs(a + b - 100) > 1.5) continue;
+      (pending === 'lr' ? lr : tb).push([m[3], m[4]]);
+      pending = null;
+    }
+    // no headers at all: take ratio pairs in order (front LR, front TB, back LR, back TB)
+    if (!lr.length && !tb.length) {
+      const pairs = [...text.matchAll(/(\d{1,2}(?:\.\d+)?)\s*%?\s*\/\s*(\d{1,2}(?:\.\d+)?)/g)].filter(x => Math.abs(parseFloat(x[1]) + parseFloat(x[2]) - 100) <= 1.5).map(x => [x[1], x[2]]);
+      if (pairs.length >= 2) { lr.push(pairs[0]); tb.push(pairs[1]); if (pairs[3]) { lr.push(pairs[2]); tb.push(pairs[3]); } }
+    }
+    return {};
+  }
+  function centeringFrom(text) {
+    const lr = [], tb = []; parseCenteringText(text, lr, tb);
+    return { front: { lr: lr[0], tb: tb[0] }, back: { lr: lr[1], tb: tb[1] } };
   }
 
   function autoLabel(cat, type) {
@@ -488,7 +501,9 @@
         ? pick(['Neither side shows damage, and centering is within gem mint range.', 'The card is clean on both sides, with centering inside gem mint tolerance.', 'Neither side shows any damage, and centering holds within gem mint tolerance.'])
         : 'Condition factors noted above hold the card at ' + article(g) + ' ' + gk + '.';
     } else {
-      const verb = factors.length === 1 ? pick(['keeps the card at', 'holds the card at', 'limits the result to']) : pick(['keep the card at', 'hold the card at']);
+      const head = factors[0].split(/ at | along | on /)[0];
+      const plural = factors.length > 1 || / and /.test(factors[0]) || isPlural(head);
+      const verb = !plural ? pick(['keeps the card at', 'holds the card at', 'limits the result to']) : pick(['keep the card at', 'hold the card at']);
       const onlyCenter = factors.length === 1 && /center|centering/.test(factors[0]);
       let s = cap(joinList(factors)) + ' ' + verb + ' ' + article(g) + ' ' + gk;
       if (onlyCenter) s = pick(['The card is clean on both sides, but ', 'Both sides are clean, but ', 'Neither side shows damage, but ']) + factors[0] + ' ' + verb + ' ' + article(g) + ' ' + gk;
@@ -750,6 +765,6 @@
     return res;
   }
 
-  const api = { parse, generate, detectFlags, clearHistory, words, autoLabel };
+  const api = { parse, generate, centeringFrom, detectFlags, clearHistory, words, autoLabel };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else root.VRB = api;
 })(typeof window !== 'undefined' ? window : globalThis);
