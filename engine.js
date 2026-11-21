@@ -221,13 +221,27 @@
 
   // ---------- centering ----------
   function worst(pair) { return pair ? Math.max(parseFloat(pair[0]), parseFloat(pair[1])) : 0; }
-  function exceedTh(pair) { const w = worst(pair); return w > 60 ? '60/40' : w > 55 ? '55/45' : null; }
+  // Validoe's compliance log is the source of truth for front centering. Only when there is no log do we fall back to the raw numbers.
+  let CUR_STRICT = null;
+  function strictFromLog(p) {
+    if (!p.log.length && !p.nominal) return null;
+    const out = { lr: null, tb: null };
+    p.log.forEach(L => {
+      const m = L.match(/front\s*(left\/right|top\/bottom)\s*>\s*(\d+\/\d+)/i);
+      if (/strict/i.test(L) && m) { const k = /left/i.test(m[1]) ? 'lr' : 'tb'; if (!out[k] || parseInt(m[2]) > parseInt(out[k])) out[k] = m[2]; }
+    });
+    return out;
+  }
+  function exceedTh(pair, axis) {
+    if (CUR_STRICT) return CUR_STRICT[axis] || null;
+    const w = worst(pair); return w > 60 ? '60/40' : w > 55 ? '55/45' : null;
+  }
   function centeringLine(c) {
     const lr = c.lr ? c.lr[0] + '/' + c.lr[1] : 'X/X', tb = c.tb ? c.tb[0] + '/' + c.tb[1] : 'X/X';
     return 'Centering measures ' + lr + ' left to right and ' + tb + ' top to bottom.';
   }
   function frontExceedSentence(c, limiting) {
-    const a = exceedTh(c.lr), b = exceedTh(c.tb);
+    const a = exceedTh(c.lr, 'lr'), b = exceedTh(c.tb, 'tb');
     if (!a && !b) return '';
     const lim = limiting ? ' and is the limiting factor' : '';
     if (a && b) {
@@ -240,7 +254,7 @@
       : pick([axis + ' centering exceeds ' + th + '.', axis + ' centering sits past ' + th + '.']);
   }
   function centeringFactor(c) {
-    const a = exceedTh(c.lr), b = exceedTh(c.tb);
+    const a = exceedTh(c.lr, 'lr'), b = exceedTh(c.tb, 'tb');
     if (a && b) return 'off center front placement on both axes';
     if (a) return pick(['off center front left to right placement', 'front left to right centering']);
     if (b) return pick(['off center front top to bottom placement', 'front top to bottom centering']);
@@ -376,16 +390,17 @@
 
   // ---------- pregrade ----------
   function pregrade(p, o) {
+    CUR_STRICT = strictFromLog(p);
     const g = o.grade;
     const fGroups = groupFlaws(p.flaws, 'front'), bGroups = groupFlaws(p.flaws, 'back');
     const anyFlaws = fGroups.length + bGroups.length > 0;
-    const centerLimited = /centering alignment/i.test(p.log.join(' ')) || (!anyFlaws && !!(exceedTh(p.centering.front.lr) || exceedTh(p.centering.front.tb)));
+    const centerLimited = /centering alignment/i.test(p.log.join(' ')) || (!anyFlaws && !!(exceedTh(p.centering.front.lr, 'lr') || exceedTh(p.centering.front.tb, 'tb')));
     const dmg = o.damageWording;
 
     const front = [];
     const fs = sideFlawSentences(fGroups);
     if (fs.length) front.push(...fs); else front.push(pick(dmg ? CLEAN_DMG : CLEAN));
-    const frontOff = !!(exceedTh(p.centering.front.lr) || exceedTh(p.centering.front.tb));
+    const frontOff = !!(exceedTh(p.centering.front.lr, 'lr') || exceedTh(p.centering.front.tb, 'tb'));
     const ex = g >= 10 ? '' : frontExceedSentence(p.centering.front, centerLimited);
     if (g >= 10 && frontOff) o._skipCenter = true;
     if (ex) front.push(ex);
@@ -461,7 +476,7 @@
     });
     add(fGroups, 'front ');
     add(bGroups, 'back ');
-    if (exceedTh(p.centering.front.lr) || exceedTh(p.centering.front.tb)) f.push('front centering');
+    if (exceedTh(p.centering.front.lr, 'lr') || exceedTh(p.centering.front.tb, 'tb')) f.push('front centering');
     return f;
   }
 
@@ -510,6 +525,10 @@
       cond = s + (below ? ', which falls below raw value' : '') + '.';
     }
     parts.push(cond);
+    if (words(parts.join(' ')) > 38 && factors.length > 1) {
+      const sf = shortFactors(p, fGroups, bGroups);
+      parts[parts.length - 1] = cap(joinList(sf)) + ' ' + pick(['keep the card at', 'hold the card at']) + ' ' + article(g) + ' ' + gk + (below ? ', which falls below raw value' : '') + '.';
+    }
 
     // decision
     let recd;
