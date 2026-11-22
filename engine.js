@@ -49,7 +49,8 @@
 
   function parse(text) {
     const out = { prices: {}, extraPrices: {}, centering: { front: {}, back: {} }, flaws: [], log: [], nominal: false, notes: [], aiNote: '', userGrade: null, hints: {} };
-    const lines = text.replace(/\r/g, '').split('\n');
+    let lines = text.replace(/\r/g, '').split('\n');
+    lines = repairSplitPriceRow(lines);
 
     // price table: header line containing PSA 10 / Grade 7, values on next line with $
     for (let i = 0; i < lines.length; i++) {
@@ -84,8 +85,8 @@
     let side = null, inLog = false;
     for (let i = 0; i < lines.length; i++) {
       const L = lines[i].trim();
-      if (/^front flaws/i.test(L)) { side = 'front'; inLog = false; continue; }
-      if (/^back flaws/i.test(L)) { side = 'back'; inLog = false; continue; }
+      if (/front flaws/i.test(L)) { side = 'front'; inLog = false; continue; }
+      if (/back flaws/i.test(L)) { side = 'back'; inLog = false; continue; }
       if (/^compliance engine log/i.test(L)) { inLog = true; side = null; continue; }
       const fm = L.match(/^\[(CORNERS|EDGES|SURFACE)\]\s*([^:]+):\s*(.+)$/i);
       if (fm && side) {
@@ -120,11 +121,13 @@
         let val = null;
         if (dollars.length >= 2 && /\$\s?[\d,.]+\+?\s*[–-]\s*~?\$/.test(L)) val = (dollars[0] + dollars[1]) / 2;
         else if (dollars.length) val = dollars[0];
-        else { const t = L.match(/^(?:psa|grade)\s*\d{1,2}(?:\.5)?\s*(?:[–-]\s*)?([\d,]{2,}(?:\.\d+)?)\s*$/i); if (t) val = num(t[1]); }
+        else { const t = L.match(/^(?:psa|grade)\s*\d{1,2}(?:\.5)?\s*(?:[–:=-]\s*|is\s+|at\s+|around\s+|avg\s+)*\$?\s*([\d,]{2,}(?:\.\d+)?)\b/i); if (t) val = num(t[1]); }
         if (val != null) {
           const co = gm[1].toUpperCase();
           const key = (co === 'PSA' || co === 'GRADE') ? gm[2] : co + ' ' + gm[2];
           out.extraPrices[key] = val;
+          // a short typed line like "psa 6 229" is also your grade call
+          if ((co === 'PSA') && L.length < 40 && !/\t/.test(L) && !/^grade/i.test(L)) out.typedGrade = parseFloat(gm[2]);
           continue;
         }
       }
@@ -150,6 +153,7 @@
       const m = L.match(/^\W*\w?p?psa?s?\s*(1\s?0|[1-9](?:\.5)?)\b/i) || L.match(/\bpsa\s*(1\s?0|[1-9](?:\.5)?)\b/i);
       if (m && L.length < 60) out.userGrade = parseFloat(m[1].replace(/\s/g, ''));
     }
+    if (out.userGrade == null && out.typedGrade != null) out.userGrade = out.typedGrade;
     const notesTxt = out.notes.join(' ').toLowerCase();
     out.hints = {
       whites: /call ?outs?.{0,30}white|white.{0,30}call ?outs?|all.{0,20}whites?|^(minor |multiple )?whites?$/m.test(out.notes.join('\n').toLowerCase()) || /\bwhites?\b/.test(notesTxt) && /call ?out/.test(notesTxt),
@@ -169,6 +173,34 @@
     };
     out.logGrade = logGrade(out);
     return out;
+  }
+
+  // When other text gets pasted into the middle of the price row, the row's tail ends up glued to a later line
+  // (often the compliance log line). Put the row back together and strip the tail from that line.
+  function repairSplitPriceRow(lines) {
+    const hi = lines.findIndex(L => /(grade|rang)\s*7/i.test(L) && /psa\s*10/i.test(L));
+    if (hi < 0) return lines;
+    let ri = -1;
+    for (let j = hi + 1; j < Math.min(hi + 4, lines.length); j++) if (/\$/.test(lines[j])) { ri = j; break; }
+    if (ri < 0) return lines;
+    const row = lines[ri];
+    const cells = (row.match(/\$\s?[\d,]+(?:\.\d+)?/g) || []).length;
+    if (cells >= 5) return lines;
+    const head = (row.match(/^\s*\$\s?[\d,]+(?:\.\d+)?\s*[+-]?/) || [''])[0];
+    const rest = row.slice(head.length);
+    for (let k = ri + 1; k < lines.length; k++) {
+      const L = lines[k];
+      const at = L.search(/\$\s?[\d,]+(?:\.\d+)?\s*\t/);
+      if (at < 0) continue;
+      const tail = L.slice(at);
+      if ((tail.match(/\$\s?[\d,]+/g) || []).length < 4) continue;
+      const out = lines.slice();
+      out[ri] = head + tail;
+      out[k] = L.slice(0, at);
+      if (rest.trim()) out.splice(ri + 1, 0, rest);
+      return out;
+    }
+    return lines;
   }
 
   function parseCenteringText(text, lr, tb) {
@@ -768,7 +800,11 @@
         let tail;
         if (!factors.length && o.grade >= 10) tail = 'no damage and centering within gem mint limits support a PSA 10.';
         else if (!factors.length) tail = 'condition factors ' + gradeVerb(p) + ' PSA ' + fmtGrade(o.grade) + '.';
-        else tail = joinList(factors) + ' ' + gradeVerb(p) + ' PSA ' + fmtGrade(o.grade) + '.';
+        else {
+          let v = gradeVerb(p);
+          if (factors.length === 1) v = v.replace(/^restrict /, 'restricts ').replace(/^limit /, 'limits ').replace(/^cap /, 'caps ').replace(/^hold /, 'holds ');
+          tail = joinList(factors) + ' ' + v + ' PSA ' + fmtGrade(o.grade) + '.';
+        }
         add('Reasons Why', cap(joinList(a.combo)) + ' all consistent with genuine production; ' + tail);
       } else {
         add('Front Comment', pg.front);

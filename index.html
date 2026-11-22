@@ -302,7 +302,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     $('grail').checked = h.grail;
     $('noBack').checked = h.noBack;
     $('rosetteBack').checked = h.rosette;
-    let foil = state.foil;
+    let foil = '';
     if (h.textured) foil = 'textured'; else if (h.holoUnique) foil = 'unique'; else if (h.holoFactory) foil = 'factory'; else if (h.noHolo) foil = '';
     state.foil = foil; segSet('foilSeg', foil);
     if (h.yugioh) $('game').value = 'yugioh';
