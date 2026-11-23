@@ -335,33 +335,44 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
 
   function chip(txt, miss){ const s = document.createElement('span'); s.className = 'chip' + (miss ? ' miss' : ''); s.textContent = txt; return s; }
 
+  // Anything you set by hand is marked "edited" and never overwritten by a re-read of the paste.
+  // A re-read also never blanks a field just because the paste no longer has that value.
+  const edited = el => el.dataset.edited === '1';
+  const markEdited = el => { el.dataset.edited = '1'; };
+  const userLabels = {}; // callout key -> label you picked
+  let foilEdited = false;
   function readPaste(){
     const p = VRB.parse($('paste').value);
     state.parsed = p;
-    state.flaws = p.flaws.map(f => Object.assign({}, f, { auto: f.label }));
     const h = p.hints;
-    // autofill
-    const g = p.userGrade != null ? p.userGrade : p.logGrade;
-    if (g != null) $('grade').value = String(g);
     if (!$('paste').value.trim()) GRID_KEYS.forEach(k => { delete gridInput(k).dataset.edited; });
+    // grade
+    const g = p.userGrade != null ? p.userGrade : p.logGrade;
+    if (g != null && !edited($('grade'))) $('grade').value = String(g);
     fillGrid(p, false);
+    // callouts: keep labels you picked for the same callout
+    state.flaws = p.flaws.map(f => Object.assign({}, f, { auto: f.label }));
     if (h.whites) state.flaws.forEach(f => f.label = /significant/.test(f.auto) ? 'significant whites' : 'minor whites');
     if (h.whiteDot) state.flaws.filter(f => f.cat === 'surface').forEach(f => f.label = 'white dot');
     else if (h.scratch) state.flaws.filter(f => f.cat === 'surface').forEach(f => f.label = 'minor scratch');
-    $('grail').checked = h.grail;
-    $('noBack').checked = h.noBack;
-    $('rosetteBack').checked = h.rosette;
-    let foil = '';
-    if (h.textured) foil = 'textured'; else if (h.holoUnique) foil = 'unique'; else if (h.holoFactory) foil = 'factory'; else if (h.noHolo) foil = '';
-    state.foil = foil; segSet('foilSeg', foil);
-    if (h.yugioh) $('game').value = 'yugioh';
-    if (h.bundle && state.mode !== 'bundle') { state.mode = 'bundle'; segSet('modeSeg','bundle'); }
+    state.flaws.forEach(f => { const k = f.side + '|' + f.cat + '|' + f.loc; if (userLabels[k]) f.label = userLabels[k]; });
+    // ticks: only switch on from your notes, never switch off something you ticked
+    [['grail', h.grail], ['noBack', h.noBack], ['rosetteBack', h.rosette]].forEach(([id, v]) => { if (!edited($(id)) && v) $(id).checked = true; });
+    if (!foilEdited) {
+      let foil = state.foil;
+      if (h.textured) foil = 'textured'; else if (h.holoUnique) foil = 'unique'; else if (h.holoFactory) foil = 'factory'; else if (h.noHolo) foil = '';
+      state.foil = foil; segSet('foilSeg', foil);
+    }
+    if (h.yugioh && !edited($('game'))) $('game').value = 'yugioh';
+    if (h.bundle && state.mode !== 'bundle' && !state.modePicked) { state.mode = 'bundle'; segSet('modeSeg','bundle'); }
+    // centering: fill only boxes you have not typed in, and only when the paste has a value
     const cv = pr => pr ? pr[0] + '/' + pr[1] : '';
-    $('cFLR').value = cv(p.centering.front.lr); $('cFTB').value = cv(p.centering.front.tb);
-    $('cBLR').value = cv(p.centering.back.lr); $('cBTB').value = cv(p.centering.back.tb);
+    [['cFLR', p.centering.front.lr], ['cFTB', p.centering.front.tb], ['cBLR', p.centering.back.lr], ['cBTB', p.centering.back.tb]].forEach(([id, pr]) => {
+      if (!edited($(id)) && pr) $(id).value = cv(pr);
+    });
     markCentering();
     const fl = VRB.detectFlags(p.aiNote);
-    document.querySelectorAll('[data-flag]').forEach(c => c.checked = !!fl[c.dataset.flag]);
+    document.querySelectorAll('[data-flag]').forEach(c => { if (!edited(c) && fl[c.dataset.flag]) c.checked = true; });
     layout();
     renderFlaws();
     // chips
@@ -379,9 +390,13 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
     if (h.fake) c.append(chip('Looks fake: fakes are not in this version', true));
   }
   function markCentering(){ ['cFLR','cFTB','cBLR','cBTB'].forEach(id => { const ok = /\d\s*%?\s*\/\s*\d/.test($(id).value); $(id).style.borderColor = ok ? '' : 'var(--warn)'; }); }
-  ['cFLR','cFTB','cBLR','cBTB'].forEach(id => $(id).addEventListener('input', markCentering));
+  ['cFLR','cFTB','cBLR','cBTB'].forEach(id => $(id).addEventListener('input', () => { markEdited($(id)); markCentering(); }));
+  ['grade','grail','noBack','rosetteBack','game'].forEach(id => $(id).addEventListener('change', () => markEdited($(id))));
+  document.querySelectorAll('[data-flag]').forEach(c => c.addEventListener('change', () => markEdited(c)));
+  $('foilSeg').addEventListener('click', e => { if (e.target.closest('button')) foilEdited = true; });
+  $('modeSeg').addEventListener('click', e => { if (e.target.closest('button')) state.modePicked = true; });
   let t; $('paste').addEventListener('input', () => { clearTimeout(t); t = setTimeout(readPaste, 250); });
-  $('clearBtn').onclick = () => { GRID_KEYS.forEach(k => { const i = gridInput(k); i.value = ''; i.classList.remove('edited'); delete i.dataset.edited; }); $('paste').value = ''; $('myComment').value = ''; ['cFLR','cFTB','cBLR','cBTB','otherPrice','otherGrade','stamp','identity','flagReason','extraAuth','backLine'].forEach(i => $(i).value=''); ['front','back'].forEach(sd => { if (photos[sd]) URL.revokeObjectURL(photos[sd]); photos[sd] = null; renderDrop(sd); }); selectDrop('front'); readPaste(); $('out').innerHTML=''; $('warns').innerHTML=''; $('recBadge').innerHTML=''; };
+  $('clearBtn').onclick = () => { document.querySelectorAll('[data-edited]').forEach(el => delete el.dataset.edited); Object.keys(userLabels).forEach(k => delete userLabels[k]); foilEdited = false; state.modePicked = false; state.foil = ''; segSet('foilSeg', ''); ['grail','noBack','rosetteBack','rosetteFront','trainer','qr','oldSlab'].forEach(id => $(id).checked = false); document.querySelectorAll('[data-flag]').forEach(c => c.checked = false); $('grade').value = ''; GRID_KEYS.forEach(k => { const i = gridInput(k); i.value = ''; i.classList.remove('edited'); delete i.dataset.edited; }); $('paste').value = ''; $('myComment').value = ''; ['cFLR','cFTB','cBLR','cBTB','otherPrice','otherGrade','stamp','identity','flagReason','extraAuth','backLine'].forEach(i => $(i).value=''); ['front','back'].forEach(sd => { if (photos[sd]) URL.revokeObjectURL(photos[sd]); photos[sd] = null; renderDrop(sd); }); selectDrop('front'); readPaste(); $('out').innerHTML=''; $('warns').innerHTML=''; $('recBadge').innerHTML=''; };
 
   function renderFlaws(){
     const box = $('flaws'); box.innerHTML = '';
@@ -392,7 +407,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
       LABELS.forEach(l => { const o = document.createElement('option'); o.value = l; o.textContent = l === 'auto' ? 'auto: ' + f.auto : l; sel.append(o); });
       const cur = LABELS.includes(f.label) && f.label !== f.auto ? f.label : 'auto';
       sel.value = cur;
-      sel.onchange = () => { f.label = sel.value === 'auto' ? f.auto : sel.value; };
+      sel.onchange = () => { f.label = sel.value === 'auto' ? f.auto : sel.value; userLabels[f.side + '|' + f.cat + '|' + f.loc] = f.label; };
       row.innerHTML = '<span class="side">' + f.side + '</span><span>' + f.loc + ' <span class="t">· ' + f.cat + ' · ' + f.type + '</span></span>';
       row.append(sel); box.append(row);
     });
@@ -404,6 +419,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
       else if (/whites/.test(v)) f.label = /significant/.test(f.auto) && v === 'minor whites' ? 'significant whites' : v;
       else if (v === 'white dot' || v === 'minor scratch') { if (f.cat === 'surface') f.label = v; }
     });
+    state.flaws.forEach(f => { userLabels[f.side + '|' + f.cat + '|' + f.loc] = f.label; });
     renderFlaws();
   });
 
