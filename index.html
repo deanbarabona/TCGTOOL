@@ -69,6 +69,26 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
 .hint{font-size:12px;color:var(--muted);margin-top:6px}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
+.photos{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.drop{position:relative;border:2px dashed var(--line);border-radius:12px;background:var(--field);aspect-ratio:5/7;width:100%;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;overflow:hidden;color:var(--muted);font-size:13px;padding:10px;touch-action:none}
+.drop.sel{border-color:var(--accent)}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop.has{cursor:grab;padding:0}
+.drop.has.drag{cursor:grabbing}
+.drop img{position:absolute;left:50%;top:50%;max-width:none;user-select:none;-webkit-user-drag:none;transform-origin:center}
+.drop .lbl{position:absolute;top:6px;left:8px;z-index:2;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--panel);padding:1px 6px;border-radius:6px}
+.drop .tools{position:absolute;right:6px;bottom:6px;z-index:2;display:flex;gap:4px}
+.drop .tools button,.drop .x{border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;font-size:12px;padding:3px 8px;cursor:pointer;line-height:1.2}
+.drop .x{position:absolute;top:6px;right:6px;z-index:2}
+.drop .zp{position:absolute;left:8px;bottom:8px;z-index:2;font-size:11px;color:var(--muted);background:var(--panel);padding:1px 6px;border-radius:6px}
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.94);z-index:50;display:flex;flex-direction:column}
+.lb .tb{background:#111;display:flex;gap:8px;align-items:center;justify-content:center;padding:10px;flex-wrap:wrap}
+.lb .tb .btn{background:#222;color:#fff;border-color:#444}
+.lb .tb .btn.on{background:var(--accent);border-color:var(--accent)}
+.lb .stage{flex:1;overflow:hidden;position:relative;cursor:grab;touch-action:none}
+.lb .stage.drag{cursor:grabbing}
+.lb .stage img{position:absolute;left:50%;top:50%;transform-origin:center;max-width:none;user-select:none;-webkit-user-drag:none}
+.lb .zl{color:#ccc;font-size:12px;min-width:44px;text-align:center}
 </style>
 </head>
 <body>
@@ -118,6 +138,16 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
       <label class="f">Back top/bottom<input id="cBTB" placeholder="57.6/42.4"></label>
     </div>
     <div class="bar" style="margin-top:8px"><button class="btn" id="clearBtn">Clear</button></div>
+  </div>
+
+  <div class="card" id="photoCard">
+    <h2>Card photos (optional)</h2>
+    <div class="photos">
+      <div class="drop sel" id="dropF" data-side="front" tabindex="0"><span class="lbl">Front</span><span class="ph">Click, drop, or paste (Ctrl+V) the front photo</span></div>
+      <div class="drop" id="dropB" data-side="back" tabindex="0"><span class="lbl">Back</span><span class="ph">Click, drop, or paste (Ctrl+V) the back photo</span></div>
+    </div>
+    <input type="file" id="photoFile" accept="image/*" class="hide">
+    <div class="hint">Scroll or use + / − to zoom, drag to move around, double click to zoom in or fit. Full screen gives a bigger view where you can flip between front and back. Photos stay in this browser tab only and are never uploaded.</div>
   </div>
 
   <div class="card" id="gradeCard">
@@ -247,6 +277,14 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   </div>
 </div>
 </div>
+<div class="lb hide" id="lb">
+  <div class="tb">
+    <button class="btn" id="lbFront">Front</button><button class="btn" id="lbBack">Back</button>
+    <button class="btn" id="lbOut">−</button><span class="zl" id="lbZoom">100%</span><button class="btn" id="lbIn">+</button>
+    <button class="btn" id="lbFit">Fit</button><button class="btn" id="lbClose">Close (Esc)</button>
+  </div>
+  <div class="stage" id="lbStage"><img id="lbImg" alt=""></div>
+</div>
 <div class="toast" id="toast">Copied</div>
 
 <script src="engine.js"></script>
@@ -329,7 +367,7 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   function markCentering(){ ['cFLR','cFTB','cBLR','cBTB'].forEach(id => { const ok = /\d\s*%?\s*\/\s*\d/.test($(id).value); $(id).style.borderColor = ok ? '' : 'var(--warn)'; }); }
   ['cFLR','cFTB','cBLR','cBTB'].forEach(id => $(id).addEventListener('input', markCentering));
   let t; $('paste').addEventListener('input', () => { clearTimeout(t); t = setTimeout(readPaste, 250); });
-  $('clearBtn').onclick = () => { $('paste').value = ''; $('myComment').value = ''; ['cFLR','cFTB','cBLR','cBTB','rawOv','tgtOv','otherPrice','otherGrade','stamp','identity','flagReason','extraAuth','backLine'].forEach(i => $(i).value=''); readPaste(); $('out').innerHTML=''; $('warns').innerHTML=''; $('recBadge').innerHTML=''; };
+  $('clearBtn').onclick = () => { $('paste').value = ''; $('myComment').value = ''; ['cFLR','cFTB','cBLR','cBTB','rawOv','tgtOv','otherPrice','otherGrade','stamp','identity','flagReason','extraAuth','backLine'].forEach(i => $(i).value=''); ['front','back'].forEach(sd => { if (photos[sd]) URL.revokeObjectURL(photos[sd]); photos[sd] = null; renderDrop(sd); }); selectDrop('front'); readPaste(); $('out').innerHTML=''; $('warns').innerHTML=''; $('recBadge').innerHTML=''; };
 
   function renderFlaws(){
     const box = $('flaws'); box.innerHTML = '';
@@ -434,6 +472,120 @@ label.f{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--mu
   $('copyAll').onclick = () => { if (!state.last) return; copy(state.last.sections.map(s => '**' + s.title + ':**\n' + s.text).join('\n\n')); };
   $('resetHist').onclick = e => { e.preventDefault(); VRB.clearHistory(); const t = $('toast'); t.textContent = 'Wording memory reset'; t.classList.add('show'); setTimeout(() => { t.classList.remove('show'); t.textContent = 'Copied'; }, 1200); };
   document.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') generate(); });
+
+  // ---------- card photos ----------
+  const photos = { front: null, back: null };
+  let photoTarget = 'front';
+  function selectDrop(side){ photoTarget = side; $('dropF').classList.toggle('sel', side === 'front'); $('dropB').classList.toggle('sel', side === 'back'); }
+  function setPhoto(side, file){
+    if (!file || !/^image\//.test(file.type)) return;
+    if (photos[side]) URL.revokeObjectURL(photos[side]);
+    photos[side] = URL.createObjectURL(file);
+    renderDrop(side);
+    if (side === 'front' && !photos.back) selectDrop('back');
+  }
+  const view = { front: { z: 1, fit: 1, x: 0, y: 0 }, back: { z: 1, fit: 1, x: 0, y: 0 } };
+  const dropEl = side => side === 'front' ? $('dropF') : $('dropB');
+  function applyView(side){
+    const d = dropEl(side), im = d.querySelector('img'); if (!im) return;
+    const v = view[side];
+    im.style.transform = 'translate(calc(-50% + ' + v.x + 'px), calc(-50% + ' + v.y + 'px)) scale(' + v.z + ')';
+    const zp = d.querySelector('.zp'); if (zp) zp.textContent = Math.round(v.z / v.fit * 100) + '%';
+  }
+  function fitView(side){
+    const d = dropEl(side), im = d.querySelector('img'); if (!im || !im.naturalWidth) return;
+    const v = view[side];
+    v.fit = Math.min(d.clientWidth / im.naturalWidth, d.clientHeight / im.naturalHeight);
+    v.z = v.fit; v.x = 0; v.y = 0; applyView(side);
+  }
+  function zoomView(side, f, cx, cy){
+    const v = view[side]; const nz = Math.max(v.fit, Math.min(v.fit * 12, v.z * f)); const r = nz / v.z;
+    cx = cx || 0; cy = cy || 0; v.x = cx - (cx - v.x) * r; v.y = cy - (cy - v.y) * r; v.z = nz;
+    if (v.z === v.fit) { v.x = 0; v.y = 0; } applyView(side);
+  }
+  function renderDrop(side){
+    const d = dropEl(side);
+    d.querySelectorAll('img,.x,.tools,.zp').forEach(n => n.remove());
+    d.querySelector('.ph').classList.toggle('hide', !!photos[side]);
+    d.classList.toggle('has', !!photos[side]);
+    if (!photos[side]) return;
+    const im = document.createElement('img'); im.alt = side + ' photo'; im.onload = () => fitView(side); im.src = photos[side];
+    const x = document.createElement('button'); x.className = 'x'; x.textContent = 'Remove';
+    x.onclick = e => { e.stopPropagation(); URL.revokeObjectURL(photos[side]); photos[side] = null; renderDrop(side); };
+    const tools = document.createElement('div'); tools.className = 'tools';
+    const mk = (t, fn, title) => { const bt = document.createElement('button'); bt.textContent = t; bt.title = title; bt.onclick = e => { e.stopPropagation(); fn(); }; bt.onpointerdown = e => e.stopPropagation(); return bt; };
+    tools.append(mk('−', () => zoomView(side, 1 / 1.4), 'Zoom out'), mk('+', () => zoomView(side, 1.4), 'Zoom in'), mk('Fit', () => fitView(side), 'Fit whole card'), mk('Full screen', () => openLB(side), 'Open full screen'));
+    x.onpointerdown = e => e.stopPropagation();
+    const zp = document.createElement('span'); zp.className = 'zp'; zp.textContent = '100%';
+    d.append(im, x, tools, zp);
+  }
+  ['dropF','dropB'].forEach(id => {
+    const d = $(id), side = d.dataset.side;
+    let drag = null, moved = false;
+    d.addEventListener('click', () => { selectDrop(side); if (!photos[side]) { $('photoFile').dataset.side = side; $('photoFile').click(); } });
+    d.addEventListener('focus', () => selectDrop(side));
+    const rel = e => { const r = d.getBoundingClientRect(); return [e.clientX - r.left - r.width / 2, e.clientY - r.top - r.height / 2]; };
+    d.addEventListener('wheel', e => { if (!photos[side]) return; e.preventDefault(); const [cx, cy] = rel(e); zoomView(side, e.deltaY < 0 ? 1.15 : 1 / 1.15, cx, cy); }, { passive: false });
+    d.addEventListener('dblclick', e => { if (!photos[side]) return; const v = view[side]; if (v.z > v.fit * 1.05) fitView(side); else { const [cx, cy] = rel(e); zoomView(side, 2.5, cx, cy); } });
+    d.addEventListener('pointerdown', e => { if (!photos[side]) return; drag = { x: e.clientX - view[side].x, y: e.clientY - view[side].y }; moved = false; d.classList.add('drag'); d.setPointerCapture(e.pointerId); });
+    d.addEventListener('pointermove', e => { if (!drag) return; view[side].x = e.clientX - drag.x; view[side].y = e.clientY - drag.y; moved = true; applyView(side); });
+    d.addEventListener('pointerup', () => { drag = null; d.classList.remove('drag'); });
+    d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('over'); });
+    d.addEventListener('dragleave', () => d.classList.remove('over'));
+    d.addEventListener('drop', e => {
+      e.preventDefault(); d.classList.remove('over');
+      const files = [...e.dataTransfer.files].filter(f => /^image\//.test(f.type));
+      if (files.length >= 2 && !photos.front && !photos.back) { setPhoto('front', files[0]); setPhoto('back', files[1]); }
+      else if (files[0]) setPhoto(side, files[0]);
+    });
+  });
+  window.addEventListener('resize', () => ['front','back'].forEach(fitView));
+  $('photoFile').onchange = () => { const f = $('photoFile').files[0]; if (f) setPhoto($('photoFile').dataset.side || photoTarget, f); $('photoFile').value = ''; };
+  document.addEventListener('paste', e => {
+    const items = [...(e.clipboardData ? e.clipboardData.items : [])].filter(i => /^image\//.test(i.type));
+    if (!items.length) return;
+    e.preventDefault();
+    items.forEach((it, k) => {
+      const f = it.getAsFile();
+      const side = k === 0 ? photoTarget : (photoTarget === 'front' ? 'back' : 'front');
+      setPhoto(side, f);
+    });
+  });
+
+  // lightbox
+  const lb = { side: 'front', z: 1, x: 0, y: 0, fit: 1 };
+  function lbApply(){ $('lbImg').style.transform = 'translate(calc(-50% + ' + lb.x + 'px), calc(-50% + ' + lb.y + 'px)) scale(' + lb.z + ')'; $('lbZoom').textContent = Math.round(lb.z / lb.fit * 100) + '%'; }
+  function lbFit(){
+    const im = $('lbImg'), st = $('lbStage');
+    if (!im.naturalWidth) return;
+    lb.fit = Math.min(st.clientWidth / im.naturalWidth, st.clientHeight / im.naturalHeight, 1) * 0.96;
+    lb.z = lb.fit; lb.x = 0; lb.y = 0; lbApply();
+  }
+  function lbShow(side){
+    if (!photos[side]) return;
+    lb.side = side; $('lbFront').classList.toggle('on', side === 'front'); $('lbBack').classList.toggle('on', side === 'back');
+    const im = $('lbImg'); im.onload = lbFit; im.src = photos[side];
+    if (im.complete && im.naturalWidth) lbFit();
+  }
+  function openLB(side){ $('lb').classList.remove('hide'); lbShow(side); }
+  function closeLB(){ $('lb').classList.add('hide'); }
+  function zoomBy(f){ lb.z = Math.max(lb.fit * 0.5, Math.min(lb.fit * 12, lb.z * f)); lbApply(); }
+  $('lbFront').onclick = () => lbShow('front'); $('lbBack').onclick = () => lbShow('back');
+  $('lbIn').onclick = () => zoomBy(1.4); $('lbOut').onclick = () => zoomBy(1 / 1.4); $('lbFit').onclick = lbFit; $('lbClose').onclick = closeLB;
+  $('lbStage').addEventListener('wheel', e => { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1.15 : 1 / 1.15); }, { passive: false });
+  let drag = null;
+  $('lbStage').addEventListener('pointerdown', e => { drag = { x: e.clientX - lb.x, y: e.clientY - lb.y }; $('lbStage').classList.add('drag'); $('lbStage').setPointerCapture(e.pointerId); });
+  $('lbStage').addEventListener('pointermove', e => { if (!drag) return; lb.x = e.clientX - drag.x; lb.y = e.clientY - drag.y; lbApply(); });
+  $('lbStage').addEventListener('pointerup', () => { drag = null; $('lbStage').classList.remove('drag'); });
+  $('lbStage').addEventListener('dblclick', e => { if (lb.z > lb.fit * 1.05) lbFit(); else zoomBy(2.5); });
+  document.addEventListener('keydown', e => {
+    if ($('lb').classList.contains('hide')) return;
+    if (e.key === 'Escape') closeLB();
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') lbShow(lb.side === 'front' ? 'back' : 'front');
+    else if (e.key === '+' || e.key === '=') zoomBy(1.4);
+    else if (e.key === '-') zoomBy(1 / 1.4);
+  });
+  window.addEventListener('resize', () => { if (!$('lb').classList.contains('hide')) lbFit(); });
 
   layout(); readPaste();
 })();
