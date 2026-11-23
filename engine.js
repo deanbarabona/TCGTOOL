@@ -111,6 +111,17 @@
       if (/^(left|top)\s*\//i.test(L) || /^sub\s|^(left|top)worst|worst side|^\d{1,2}\.\d\/\d|^measured live|^verification$|^volume:|^\+\s*$/i.test(L)) continue;
       if (/^(\/|left|right|top|bottom|sub\s*[\d.]+)$/i.test(L)) continue;
       if (/^\[|^-?\d+(\.\d)?$|^front flaws|^back flaws|^compliance|^clean$|^\d+$/i.test(L)) continue;
+      // generic price table rows (tabs or pipes): first cell names the grade, first short money cell is the value
+      const tr = tableRow(L);
+      if (tr) {
+        if (tr.foreign) out.foreignCurrency = true;
+        if (tr.val != null) {
+          if (tr.raw) { if (out.prices.raw == null || tr.preferRaw) out.prices.raw = tr.val; }
+          else tr.keys.forEach(k => { out.extraPrices[k] = tr.val; });
+          out.extraFound = (out.extraFound || 0) + 1;
+        }
+        continue;
+      }
       // range rows like "PSA 1 – PSA 2 (Poor to Good)	$11 – $19"
       const rr = L.match(/^psa\s*(\d+)\s*[–-]\s*psa\s*(\d+).*?\$\s*([\d,.]+)\s*[–-]\s*\$\s*([\d,.]+)/i);
       if (rr) { const v = (num(rr[3]) + num(rr[4])) / 2; for (let k = +rr[1]; k <= +rr[2]; k++) out.extraPrices[String(k)] = v; continue; }
@@ -201,6 +212,42 @@
       return out;
     }
     return lines;
+  }
+
+  // One row of a pasted price table. Handles PriceCharting style rows, AI summary tables with notes columns,
+  // ranges ("$115 – $135", "~$350 – $550+"), grade ranges ("PSA 1 – PSA 4"), and "No recorded sales" rows.
+  function tableRow(L) {
+    let cells;
+    if (/\t/.test(L)) cells = L.split('\t');
+    else if (/^\s*\|.*\|/.test(L)) cells = L.replace(/^\s*\||\|\s*$/g, '').split('|');
+    else return null;
+    cells = cells.map(c => c.trim());
+    if (cells.length < 2) return null;
+    const head = cells[0];
+    if (/^:?-{2,}/.test(head)) return { skip: true };
+    let keys = [], raw = false;
+    const rg = head.match(/(?:psa|grade|rang)\s*(\d{1,2}(?:\.5)?)\s*(?:[–-]|to)\s*(?:psa|grade|rang)?\s*(\d{1,2})\b/i);
+    const one = head.match(/\b(psa|grade|rang|tag|cgc|bgs)\s*(\d{1,2}(?:\.5)?)\b/i);
+    if (rg) { for (let k = Math.floor(+rg[1]); k <= +rg[2]; k++) keys.push(String(k)); }
+    else if (one) { const co = one[1].toUpperCase(); keys.push(co === 'PSA' || co === 'GRADE' || co === 'RANG' ? one[2] : co + ' ' + one[2]); }
+    else if (/\b(ungraded|raw|ongesorteerd|non class[ée]|unbewertet)\b/i.test(head)) raw = true;
+    else return null; // header rows and anything that isn't a grade
+    // value cell: first short cell after the head with money in it; a "no data" cell means skip the row
+    let val = null, foreign = false;
+    for (let i = 1; i < cells.length; i++) {
+      const c = cells[i];
+      if (!c) continue;
+      if (/^(no\b|n\/a|none|-+$|—|tbd|unknown)/i.test(c)) break;
+      if (c.length > 70) break; // notes column, not a price
+      const m = [...c.matchAll(/(\$|€|£|¥|usd|eur)?\s*~?\s*([\d][\d,]*(?:\.\d+)?)\s*\+?/gi)].filter(x => x[1] || /\$|€|£|¥/.test(c));
+      if (!m.length) { if (/[a-z]/i.test(c)) break; continue; }
+      if (/€|£|¥|eur\b/i.test(c) && !/\$/.test(c)) foreign = true;
+      const nums = m.map(x => num(x[2])).filter(v => !isNaN(v));
+      if (!nums.length) continue;
+      val = nums.length >= 2 && /\d\s*\+?\s*(–|-|to)\s*~?\s*(\$|€|£)?\s*\d/.test(c) ? (nums[0] + nums[1]) / 2 : nums[0];
+      break;
+    }
+    return { keys, raw, val, foreign, preferRaw: raw };
   }
 
   function parseCenteringText(text, lr, tb) {
@@ -515,9 +562,13 @@
   function recommendation(p, o, fGroups, bGroups, warnings) {
     if (o._skipCenter) p = Object.assign({}, p, { centering: { front: {}, back: p.centering.back } });
     const g = o.grade, gk = fmtGrade(g);
-    const raw = o.rawOverride != null ? o.rawOverride : p.prices.raw;
-    let tgt = o.targetOverride != null ? o.targetOverride : (p.extraPrices[gk] != null ? p.extraPrices[gk] : p.prices[gk]);
-    if (raw == null) warnings.push('Raw value not found. Type it in Raw value override.');
+    let raw, tgt;
+    if (o.priceGrid) { raw = o.priceGrid.raw != null ? o.priceGrid.raw : null; tgt = o.priceGrid[gk] != null ? o.priceGrid[gk] : null; }
+    else {
+      raw = o.rawOverride != null ? o.rawOverride : p.prices.raw;
+      tgt = o.targetOverride != null ? o.targetOverride : (p.extraPrices[gk] != null ? p.extraPrices[gk] : p.prices[gk]);
+    }
+    if (raw == null) warnings.push('Raw value is empty. Type it in the Raw box of the price grid.');
     const parts = [];
     const otherTxt = o.otherCo && o.otherPrice != null ? ' and a ' + o.otherCo + ' ' + fmtGrade(o.otherGrade || g) + ' averaging ' + money(o.otherPrice) : '';
     const rawLabel = o.regrade ? 'Current ' + (o.currentSlab || 'PSA X') + ' value' : 'Raw value';
